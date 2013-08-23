@@ -253,10 +253,7 @@ class Simulator (BGBaseSystem):
                 switches = switch_list,
                 state = "idle",
             ))
-            
-            if (NODES_PER_NODECARD * nc_count < 512):
-                print partition_def.get("name"), NODES_PER_NODECARD * nc_count
-        
+                  
         partitions.q_add(tmp_list)
         
         # find the wiring deps
