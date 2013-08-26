@@ -801,13 +801,14 @@ class BGQsim(Simulator):
                 score = 0
                 
                 # the lower the score, more compact the block is, the better performance the app may benefit
-                #score = self.get_partition_dim_accu(partition)
+                score = self.get_partition_dim_accu(partition)
+                print partition.name, score
                 #print score
                 
                 # minimize the fragmentaions, least blocked
-                for p in partition.parents:
-                    if self.cached_partitions[p].state == "idle" and self.cached_partitions[p].scheduled:
-                        score += 1
+#                for p in partition.parents:
+#                    if self.cached_partitions[p].state == "idle" and self.cached_partitions[p].scheduled:
+#                        score += 1
                         
                 # hybrid 
                 #if utilization < threshhold:
@@ -826,6 +827,9 @@ class BGQsim(Simulator):
                 #record equavalent partitions that have same best score
                 elif score == best_score:
                     best_partition_list.append(partition)
+                    
+                    
+        print "------------------------------------------------------"
         
         if self.walltime_aware_cons and len(best_partition_list) > 1:
             #print "best_partition_list=", [part.name for part in best_partition_list]

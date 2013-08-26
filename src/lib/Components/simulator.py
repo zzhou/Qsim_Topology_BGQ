@@ -238,13 +238,16 @@ class Simulator (BGBaseSystem):
 
             nc_count = len(node_list)
             
+            # remove partitions which have less than 512 nodes
+            if ( NODES_PER_NODECARD * nc_count ) < 512:
+                continue 
             if not wiring_cache.has_key(nc_count):
                 wiring_cache[nc_count] = []
             wiring_cache[nc_count].append(partition_def.get("name"))
 
             for s in partition_def.getiterator("Switch"):
                 switch_list.append(s.get("id"))
-
+                
             tmp_list.append( dict(
                 name = partition_def.get("name"),
                 queue = partition_def.get("queue", "default"),
