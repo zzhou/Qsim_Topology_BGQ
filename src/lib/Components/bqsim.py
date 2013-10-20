@@ -30,20 +30,67 @@ from Cobalt.Proxy import ComponentProxy, local_components
 from Cobalt.Server import XMLRPCServer, find_intended_location
 
 from parse_config import *
+import types
 
 REMOTE_QUEUE_MANAGER = "cluster-queue-manager"
 
 WALLTIME_AWARE_CONS = False
 
 MACHINE_ID = 0
-MACHINE_NAME = "Intrepid"
+MACHINE_NAME = "Mira"
 DEFAULT_MAX_HOLDING_SYS_UTIL = 0.6
 SELF_UNHOLD_INTERVAL = 0
 AT_LEAST_HOLD = 600
 MIDPLANE_SIZE = 512
-TOTAL_NODES = 40960
-TOTAL_MIDPLANE = 80
+TOTAL_NODES = 49152
+TOTAL_MIDPLANE = 96
 YIELD_THRESHOLD = 0
+
+# slowdown
+MAX_SLOWDOWN = 0.2 
+MIN_SLOWDOWN = 0
+
+# pre-defined special partitions
+SPEC_PARTITIONS = [
+'MIR-40000-73771-2048',
+'MIR-04880-37FF1-2048',
+'MIR-04000-77771-4096',
+'MIR-44880-77FF1-2048',
+'MIR-08000-3B771-2048',
+'MIR-00800-33F71-2048',
+'MIR-08000-7B771-4096',
+'MIR-00800-73FF1-4096',
+'MIR-40880-73FF1-2048',
+'MIR-08800-7BFF1-4096',
+'MIR-08880-3BFF1-2048',
+'MIR-44000-77771-2048',
+'MIR-40800-73F71-2048',
+'MIR-08800-3BF71-2048',
+'MIR-44080-777F1-2048',
+'MIR-00880-33FF1-2048',
+'MIR-48000-7B771-2048',
+'MIR-48800-7BF71-2048',
+'MIR-04800-77FF1-4096',
+'MIR-04080-777F1-4096',
+'MIR-04080-377F1-2048',
+'MIR-48080-7B7F1-2048',
+'MIR-00000-33771-2048',
+'MIR-04800-37F71-2048',
+'MIR-08800-7BF71-4096',
+'MIR-04800-77F71-4096',
+'MIR-40080-737F1-2048',
+'MIR-44800-77F71-2048',
+'MIR-48880-7BFF1-2048',
+'MIR-00800-73F71-4096',
+'MIR-00080-337F1-2048',
+'MIR-08080-3B7F1-2048',
+'MIR-08080-7B7F1-4096',
+'MIR-00080-737F1-4096',
+'MIR-00000-77771-8192'
+]
+
+# partition geometry file
+GEOMETRY_FILE = "2013-10-10-mira_block_geometry"
     
 class BGQsim(Simulator):
     '''Cobalt Queue Simulator for cluster systems'''
@@ -56,7 +103,14 @@ class BGQsim(Simulator):
     def __init__(self, *args, **kwargs):
         
         Simulator.__init__(self, *args, **kwargs)
-         
+	
+        #initialize random seed
+        random.seed(1)
+
+        #slowdown
+        self.slowdown = kwargs.get("slowdown", False)
+        self.num_slowdown = 0        
+ 
         #initialize partitions
         self.sleep_interval = kwargs.get("sleep_interval", 0)
         
@@ -79,7 +133,11 @@ class BGQsim(Simulator):
                 if part.size >= MIDPLANE_SIZE:
                     self.part_size_list.append(int(part.size))
         self.part_size_list.sort()
-
+        
+        # load partition names and geometry
+        self.part_geometry = {}
+        self.load_part_geometry(GEOMETRY_FILE)
+        
 ###-------Job related
         self.workload_file =  kwargs.get("bgjob")
         self.output_log = MACHINE_NAME + "-" + kwargs.get("outputlog", "")
@@ -466,7 +524,7 @@ class BGQsim(Simulator):
                     return []
                 
             if cur_event == "C":
-                 if self.job_hold_dict.keys():
+                if self.job_hold_dict.keys():
                     self.unhold_all()
                 
         self.event_manager.set_go_next(True)
@@ -514,8 +572,8 @@ class BGQsim(Simulator):
                 for partition in completed_job.location:
                     self.release_partition(partition)
                 
-                partsize = int(self._partitions[partition].size)
-                self.num_busy -= partsize
+                    partsize = int(self._partitions[partition].size)
+                    self.num_busy -= partsize
                                 
                 #log the job end event
                 jobspec = completed_job.to_rx()
@@ -683,19 +741,21 @@ class BGQsim(Simulator):
         #determine whether the job is going to fail before completion
         location = newattr['location']
         duration = jobspec['remain_time']
-        
-        # change duration time based on slowdown
-        current_shape = [1, 1, 1]
-        best_shape = [1, 1, 1]
-        slowdown = self.get_slowdown(current_shape, best_shape)
-        duration *= slowdown
-        
+            
+        #determine slowdown
+        partition = location[0]
+        if partition in SPEC_PARTITIONS:
+            slowdown = MAX_SLOWDOWN
+            duration = duration * ( 1 - slowdown )
+            self.num_slowdown += 1
+            #print partition
+ 
         end = start + duration
         updates['end_time'] = end
         self.insert_time_stamp(end, "E", {'jobid':jobspec['jobid']})
         
         updates.update(newattr)
-    
+        #print location[0], self.get_dimensions(self.part_geometry[location[0]])   
         return updates
     
 ##### system related 
@@ -800,22 +860,17 @@ class BGQsim(Simulator):
                 # let's check the impact on partitions that would become blocked            
                 score = 0
                 
-                # the lower the score, more compact the block is, the better performance the app may benefit
-                score = self.get_partition_dim_accu(partition)
-                print partition.name, score
-                #print score
-                
                 # minimize the fragmentaions, least blocked
-#                for p in partition.parents:
-#                    if self.cached_partitions[p].state == "idle" and self.cached_partitions[p].scheduled:
-#                        score += 1
-                        
-                # hybrid 
-                #if utilization < threshhold:
-                    # maximize performance
-                #else:
-                    # minimize fragmentaion
-                #    pass
+                for p in partition.parents:
+                    if self.cached_partitions[p].state == "idle" and self.cached_partitions[p].scheduled:
+                        score += 1
+                
+                #choose the most cubic partition
+                if self.slowdown:
+                    if  partition.name in SPEC_PARTITIONS:
+                        score = 0
+                    else:
+                        score = 1        
                 
                 # the lower the score, the fewer new partitions will be blocked by this selection
                 if score < best_score:
@@ -827,9 +882,6 @@ class BGQsim(Simulator):
                 #record equavalent partitions that have same best score
                 elif score == best_score:
                     best_partition_list.append(partition)
-                    
-                    
-        print "------------------------------------------------------"
         
         if self.walltime_aware_cons and len(best_partition_list) > 1:
             #print "best_partition_list=", [part.name for part in best_partition_list]
@@ -1126,12 +1178,11 @@ class BGQsim(Simulator):
 
     def calc_loss_of_capacity(self):
         '''calculate loss of capacity for one iteration'''
-        
         if self.num_waiting > 0:
             idle_nodes = TOTAL_NODES - self.num_busy
             has_loss = False
             for job in self.queuing_jobs:
-                if (int(job.nodes)) < idle_nodes:
+		if (int(job.nodes)) < idle_nodes:
                     has_loss = True
                     break
             if has_loss:
@@ -1587,11 +1638,11 @@ class BGQsim(Simulator):
         for partition in self._partitions.itervalues():
             if partition.size == MIDPLANE_SIZE:
                 if partition.state == status:
-                    idle_midplane_list.append(partition.name)
+                    idle_midplane_list.append(partition)
                 
         return idle_midplane_list        
 
-    def show_resource(self):
+    def     show_resource(self):
         '''print rack_matrix'''
         
         self.mark_matrix()
@@ -1649,10 +1700,9 @@ class BGQsim(Simulator):
     def mark_matrix(self):
         idle_midplanes = self.get_midplanes_by_state('idle')
         self.reset_rack_matrix()
-        for name in idle_midplanes:  #sample name for a midplane:  ANL-R15-M0-512
-            row = int(name[5])
-            col = int(name[6])
-            M = int(name[9])
+        for midplane in idle_midplanes:  #sample name for a midplane:  ANL-R15-M0-512
+            # get row, column and midplane
+            row, col, M = self.get_pos_midplane(midplane)
             self.rack_matrix[row][col][M] = 1
         holden_midplanes = self.get_holden_midplanes()
         if self.coscheduling and self.cosched_scheme == "hold":
@@ -1664,11 +1714,9 @@ class BGQsim(Simulator):
                 
     def reset_rack_matrix(self):
         self.rack_matrix = [
-                [[0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]],
-                [[0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]],
-                [[0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]],
-                [[0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]],
-                [[0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0], [0,0]],
+                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0,0], [0,0], [0,0], [0,0], [0, 0], [0, 0], [0, 0], [0, 0]],
+                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0,0], [0,0], [0,0], [0,0], [0, 0], [0, 0], [0, 0], [0, 0]],
+                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0,0], [0,0], [0,0], [0,0], [0, 0], [0, 0], [0, 0], [0, 0]]
             ]
         #self.rack_matrix = [[[0,0] for i in range(8)] for j in range(5)]
     
@@ -1778,15 +1826,50 @@ class BGQsim(Simulator):
         '''post screen after simulation completes'''
         #print self.first_yield_hold_time_dict
         capacity_loss_rate = self.total_capacity_loss_rate()
-        msg  = "capacity loss=%f" % capacity_loss_rate 
+        msg  = "capacity loss=%f" % capacity_loss_rate
+	print "Number of slowdown: ", self.num_slowdown 
         self.dbglog.LogMessage(msg)
         pass
     post_simulation_handling = exposed(post_simulation_handling)    
     
-    def get_partition_dim_accu(self, partition):
-        row, inter_row, inter_rack_pair = get_dim(partition)
-        #print partition.name, "%d * %d * %d" % (row, inter_row, inter_rack_pair)
-        return get_dim_accu(row, inter_row, inter_rack_pair)
+    def get_pos_midplane(self, midplane):
+        for nodeboard in midplane.node_cards:
+            row = int(nodeboard.id[1])
+            col = int(self.convent_col(nodeboard.id[2]))
+            M = int(nodeboard.id[5])
+
+            return row, col, M
+        
+    def convent_col(self, row):
+        if row.isdigit():
+            return row
+        elif row == 'A':
+            return 10
+        elif row == 'B':
+            return 11
+        elif row == 'C':
+            return 12
+        elif row == 'D':
+            return 13
+        elif row == 'E':
+            return 14
+        elif row == 'F':
+            return 15
+        else:
+            return -1
     
-    def get_slowdown(self, current_shape, best_shape):
-        return 1
+    def load_part_geometry(self, geometry_file):
+        gfile = open(geometry_file, "r")
+        
+        for line in gfile:
+            line = line.strip("\n")
+            line = line.strip("\r")
+            specs =line.split()
+            self.part_geometry[specs[0]] = specs[1]
+        
+        gfile.close()
+            
+    def get_dimensions(self, geometry):
+        dims = geometry.split("x")
+        # return dimension A, B, C, D
+        return str(dims[0])+str( dims[1])+str( dims[2])+str( dims[3])

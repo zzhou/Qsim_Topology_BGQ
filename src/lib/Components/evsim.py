@@ -307,6 +307,6 @@ class EventSimulator(Component):
         if machine == EUREKA:
             self.csched.schedule_jobs()
         
-        #if self.go_next:
-            #ComponentProxy("queue-manager").calc_loss_of_capacity()
+        if self.go_next:
+            ComponentProxy("queue-manager").calc_loss_of_capacity()
             

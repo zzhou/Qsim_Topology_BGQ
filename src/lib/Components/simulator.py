@@ -19,6 +19,7 @@ import sets
 import xmlrpclib
 from datetime import datetime
 from ConfigParser import ConfigParser
+import traceback
 
 try:
     from elementtree import ElementTree
@@ -205,6 +206,7 @@ class Simulator (BGBaseSystem):
         except:
             self.logger.error("problem loading data from file: %r" % config_file)
             self.logger.error("exiting...")
+            traceback.print_exc(file=sys.stdout)
             sys.exit(1)
             
         system_def = system_doc.getroot()
@@ -226,21 +228,15 @@ class Simulator (BGBaseSystem):
         wiring_cache = {}
         bp_cache = {}
         
-        for partition_def in system_def.getiterator("Partition"):
-            if not partition_def.get("name").startswith("ANL"):
-                continue
-            
+        for partition_def in system_def.getiterator("Block"):
             node_list = []
             switch_list = []
             
-            for nc in partition_def.getiterator("NodeCard"): 
+            for nc in partition_def.getiterator("NodeBoard"): 
                 node_list.append(_get_node_card(nc.get("id")))
 
             nc_count = len(node_list)
             
-            # remove partitions which have less than 512 nodes
-            if ( NODES_PER_NODECARD * nc_count ) < 512:
-                continue 
             if not wiring_cache.has_key(nc_count):
                 wiring_cache[nc_count] = []
             wiring_cache[nc_count].append(partition_def.get("name"))
@@ -256,7 +252,7 @@ class Simulator (BGBaseSystem):
                 switches = switch_list,
                 state = "idle",
             ))
-                  
+        
         partitions.q_add(tmp_list)
         
         # find the wiring deps
@@ -275,6 +271,7 @@ class Simulator (BGBaseSystem):
                         self.logger.info("found a wiring dep between %s and %s", p.name, other.name)
                         partitions[p.name]._wiring_conflicts.add(other.name)
         
+            
         # update object state
         self._partitions.clear()
         self._partitions.update(partitions)
