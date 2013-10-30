@@ -47,7 +47,7 @@ TOTAL_MIDPLANE = 96
 YIELD_THRESHOLD = 0
 
 # slowdown
-MAX_SLOWDOWN = 0.2 
+MAX_SLOWDOWN = 0.05
 MIN_SLOWDOWN = 0
 
 # pre-defined special partitions
@@ -103,12 +103,15 @@ class BGQsim(Simulator):
     def __init__(self, *args, **kwargs):
         
         Simulator.__init__(self, *args, **kwargs)
-	
+        
         #initialize random seed
         random.seed(1)
 
-        #slowdown
-        self.slowdown = kwargs.get("slowdown", False)
+        #geometry and slowdown
+        self.geometry_sched = kwargs.get("geometry", False)
+        self.slowdown = kwargs.get("slowdown", 0.0)
+        print "Geometry scheduling: ", self.geometry_sched
+        print "Slowdown factor: ", self.slowdown
         self.num_slowdown = 0        
  
         #initialize partitions
@@ -745,7 +748,7 @@ class BGQsim(Simulator):
         #determine slowdown
         partition = location[0]
         if partition in SPEC_PARTITIONS:
-            slowdown = MAX_SLOWDOWN
+            slowdown = self.get_slowdown()
             duration = duration * ( 1 - slowdown )
             self.num_slowdown += 1
             #print partition
@@ -866,7 +869,7 @@ class BGQsim(Simulator):
                         score += 1
                 
                 #choose the most cubic partition
-                if self.slowdown:
+                if self.geometry_sched:
                     if  partition.name in SPEC_PARTITIONS:
                         score = 0
                     else:
@@ -1873,3 +1876,7 @@ class BGQsim(Simulator):
         dims = geometry.split("x")
         # return dimension A, B, C, D
         return str(dims[0])+str( dims[1])+str( dims[2])+str( dims[3])
+    
+    def get_slowdown(self):
+        #return random.uniform(0.05, self.slowdown)
+        return self.slowdown
