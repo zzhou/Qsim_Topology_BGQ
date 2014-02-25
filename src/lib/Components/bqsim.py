@@ -1143,6 +1143,7 @@ class BGQsim(Simulator):
                             
             val = ( queued_time / wall_time_sched)**3 * (size/64.0)
             
+#            val = queued_time
             return val
         
         def high_prio():
