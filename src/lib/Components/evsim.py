@@ -304,9 +304,20 @@ class EventSimulator(Component):
 
         if machine == INTREPID:
             self.bgsched.schedule_jobs()
+            util = ComponentProxy("queue-manager").get_util()
+            self.log_info(util, "mira_util_mesh")
+            
         if machine == EUREKA:
             self.csched.schedule_jobs()
         
         if self.go_next:
             ComponentProxy("queue-manager").calc_loss_of_capacity()
+    
+    
+    # record info into logfile 
+    def log_info(self, spec, filename):
+        f=open(filename, "a")
+        print >> f, spec
+        f.close()
+        return True
             

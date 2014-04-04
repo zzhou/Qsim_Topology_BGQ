@@ -139,10 +139,10 @@ class BGQsim(Simulator):
         
         # load partition names and geometry
         self.part_geometry = {}
-        self.load_part_geometry(GEOMETRY_FILE)
+        #self.load_part_geometry(GEOMETRY_FILE)
         
 ###-------Job related
-        self.workload_file =  kwargs.get("bgjob")
+        self.workload_file = kwargs.get("bgjob")
         self.output_log = MACHINE_NAME + "-" + kwargs.get("outputlog", "")
         
         self.event_manager = ComponentProxy("event-manager")
@@ -202,7 +202,7 @@ class BGQsim(Simulator):
             self.walltime_aware_aggr = True
  
 ###-------CoScheduling start###
-        self.cosched_scheme_tup = kwargs.get("coscheduling", (0,0))
+        self.cosched_scheme_tup = kwargs.get("coscheduling", (0, 0))
 
         self.mate_vicinity = kwargs.get("vicinity", 0)
         
@@ -250,7 +250,7 @@ class BGQsim(Simulator):
         
         #initialize debug logger
         if self.output_log:
-            self.dbglog = PBSlogger(self.output_log+"-debug")
+            self.dbglog = PBSlogger(self.output_log + "-debug")
         else:
             self.dbglog = PBSlogger(".debug")
         
@@ -334,11 +334,11 @@ class BGQsim(Simulator):
             log_walltime = "%s:%s:00" % (walltime_hours, walltime_minutes)
             if eventtype == 'S':  #start running 
                 message = "%s;S;%s;queue=%s qtime=%s Resource_List.nodect=%s Resource_List.walltime=%s start=%s exec_host=%s" % \
-                (timestamp, spec['jobid'], spec['queue'], spec['submittime'], 
+                (timestamp, spec['jobid'], spec['queue'], spec['submittime'],
                  spec['nodes'], log_walltime, spec['start_time'], ":".join(spec['location']))
             elif eventtype == 'H':  #hold some resources  
                 message = "%s;H;%s;queue=%s qtime=%s Resource_List.nodect=%s Resource_List.walltime=%s exec_host=%s" % \
-                (timestamp, spec['jobid'], spec['queue'], spec['submittime'], 
+                (timestamp, spec['jobid'], spec['queue'], spec['submittime'],
                  spec['nodes'], log_walltime, ":".join(spec['location']))
             elif eventtype == "U":  #unhold some resources  
                 message = "%s;U;%s;host=%s" % \
@@ -350,7 +350,7 @@ class BGQsim(Simulator):
                 else:
                     overhead = 0
                 message = "%s;E;%s;queue=%s qtime=%s Resource_List.nodect=%s Resource_List.walltime=%s start=%s end=%f exec_host=%s runtime=%s hold=%s overhead=%s" % \
-                (timestamp, spec['jobid'], spec['queue'], spec['submittime'], spec['nodes'], log_walltime, spec['start_time'], 
+                (timestamp, spec['jobid'], spec['queue'], spec['submittime'], spec['nodes'], log_walltime, spec['start_time'],
                  round(float(spec['end_time']), 1), ":".join(spec['location']),
                  spec['runtime'], spec['hold_time'], overhead)
             else:
@@ -405,8 +405,8 @@ class BGQsim(Simulator):
             spec['walltime'] = 0
             if format_walltime:
                 segs = format_walltime.split(':')
-                walltime_minuntes = int(segs[0])*60 + int(segs[1])
-                spec['walltime'] = str(int(segs[0])*60 + int(segs[1]))
+                walltime_minuntes = int(segs[0]) * 60 + int(segs[1])
+                spec['walltime'] = str(int(segs[0]) * 60 + int(segs[1]))
             else:  #invalid job entry, discard
                 continue
             
@@ -414,8 +414,8 @@ class BGQsim(Simulator):
                 act_run_time = float(tmp.get('end')) - float(tmp.get('start'))
                 if act_run_time <= 0:
                     continue
-                if act_run_time / (float(spec['walltime'])*60) > 1.1:
-                    act_run_time = float(spec['walltime'])*60
+                if act_run_time / (float(spec['walltime']) * 60) > 1.1:
+                    act_run_time = float(spec['walltime']) * 60
                 spec['runtime'] = str(round(act_run_time, 1))
             else:
                 continue
@@ -446,12 +446,12 @@ class BGQsim(Simulator):
         specs.sort(subtimecmp)
             
         #adjust workload density and simulation start time
-        if self.fraction != 1 or self.anchor !=0 :
+        if self.fraction != 1 or self.anchor != 0 :
             tune_workload(specs, self.fraction, self.anchor)
             
         print "simulation time span:"
         print "first job submitted:", sec_to_date(specs[0].get('submittime'))
-        print "last job submitted:", sec_to_date(specs[len(specs)-1].get('submittime'))
+        print "last job submitted:", sec_to_date(specs[len(specs) - 1].get('submittime'))
         
         self.total_job = len(specs)
         print "total job number:", self.total_job
@@ -565,7 +565,7 @@ class BGQsim(Simulator):
                 
                 del self.unsubmitted_job_spec_dict[Id]
 
-            elif cur_event=="E":  # Job (Id) is completed
+            elif cur_event == "E":  # Job (Id) is completed
                 completed_job = self.get_live_job_by_id(Id)
                 
                 if completed_job == None:
@@ -744,14 +744,23 @@ class BGQsim(Simulator):
         #determine whether the job is going to fail before completion
         location = newattr['location']
         duration = jobspec['remain_time']
-            
-        #determine slowdown
+        
+        # determine mesh slowdown
         partition = location[0]
-        if partition in SPEC_PARTITIONS:
+        size = int(self._partitions[partition].size)
+        
+        if size >= 1024:
             slowdown = self.get_slowdown()
-            duration = duration * ( 1 - slowdown )
+            duration = duration * (1 + slowdown)
             self.num_slowdown += 1
-            #print partition
+            
+#        #determine slowdown
+#        partition = location[0]
+#        if partition in SPEC_PARTITIONS:
+#            slowdown = self.get_slowdown()
+#            duration = duration * (1 - slowdown)
+#            self.num_slowdown += 1
+#            #print partition
  
         end = start + duration
         updates['end_time'] = end
@@ -856,7 +865,7 @@ class BGQsim(Simulator):
                 runtime_estimate = float(walltime)
             
             if backfilling:
-                if 60*runtime_estimate > (partition.backfill_time - now):
+                if 60 * runtime_estimate > (partition.backfill_time - now):
                     continue
                 
             if partition.state == "idle":
@@ -895,14 +904,14 @@ class BGQsim(Simulator):
                 if nbpart:
                     nbjob = self.get_running_job_by_partition(nbpart)
                     if nbjob:
-                        nbjob_remain_length = nbjob.starttime + 60*float(nbjob.walltime) - self.get_current_time_sec()
-                        diff = abs(60*float(walltime) - nbjob_remain_length)
+                        nbjob_remain_length = nbjob.starttime + 60 * float(nbjob.walltime) - self.get_current_time_sec()
+                        diff = abs(60 * float(walltime) - nbjob_remain_length)
                         if diff < least_diff:
                             least_diff = diff
                             best_partition = partition
                         msg = "jobid=%s, partition=%s, neighbor part=%s, neighbor job=%s, diff=%s" % (jobid, partition.name, nbpart, nbjob.jobid, diff)
                         #self.dbglog.LogMessage(msg)
-            msg = "------------job %s allocated to best_partition %s-------------" % (jobid,  best_partition.name)
+            msg = "------------job %s allocated to best_partition %s-------------" % (jobid, best_partition.name)
             #self.dbglog.LogMessage(msg)
                             
         if best_partition:
@@ -929,7 +938,7 @@ class BGQsim(Simulator):
             if p.state == "idle":
                 p.backfill_time = now
             else:
-                p.backfill_time = now + 5*60
+                p.backfill_time = now + 5 * 60
             p.draining = False
             
         for p in self.cached_partitions.itervalues():    
@@ -1037,9 +1046,9 @@ class BGQsim(Simulator):
             
         for job in self.queues.get_jobs([{'is_runnable':True}]):    
             utility_name = self.queues[job.queue].policy
-            args = {'queued_time':current_time - float(job.submittime), 
-                    'wall_time': 60*float(job.walltime),    
-                    'wall_time_p':  60*float(job.walltime_p), ##  *AdjEst*
+            args = {'queued_time':current_time - float(job.submittime),
+                    'wall_time': 60 * float(job.walltime),
+                    'wall_time_p':  60 * float(job.walltime_p), ##  *AdjEst*
                     'size': float(job.nodes),
                     'user_name': job.user,
                     'project': job.project,
@@ -1141,7 +1150,7 @@ class BGQsim(Simulator):
             else:
                 wall_time_sched = wall_time
                             
-            val = ( queued_time / wall_time_sched)**3 * (size/64.0)
+            val = (queued_time / wall_time_sched) ** 3 * (size / 64.0)
             
 #            val = queued_time
             return val
@@ -1195,7 +1204,7 @@ class BGQsim(Simulator):
     calc_loss_of_capacity = exposed(calc_loss_of_capacity)
 
     def current_cycle_capacity_loss(self):
-        loss  = 0
+        loss = 0
         current_time = self.get_current_time_sec()
         next_time = self.event_manager.get_next_event_time_sec()
         time_length = next_time - current_time
@@ -1208,12 +1217,12 @@ class BGQsim(Simulator):
     def total_capacity_loss_rate(self):
         timespan_sec = self.event_manager.get_time_span()
         
-        total_NH = TOTAL_NODES *  (timespan_sec / 3600)
+        total_NH = TOTAL_NODES * (timespan_sec / 3600)
             
         #print "total_nodehours=", total_NH
         #print "total loss capcity (node*hour)=", self.capacity_loss / 3600
         
-        loss_rate = self.capacity_loss /  (total_NH * 3600)
+        loss_rate = self.capacity_loss / (total_NH * 3600)
         
         print "capacity loss rate=", loss_rate
         return loss_rate        
@@ -1299,7 +1308,7 @@ class BGQsim(Simulator):
         partition = self._partitions[partname]
         partsize = partition.size
         if partsize == 512:  #e.g. ANL-R12-M0-512  --> ANL-R12-M1-512
-            nbpart = "%s%s%s" % (partname[0:9], 1-int(partname[9]), partname[10:])  #reverse the midplane
+            nbpart = "%s%s%s" % (partname[0:9], 1 - int(partname[9]), partname[10:])  #reverse the midplane
         elif partsize == 1024:  #e.g.  ANL-R12-1024 --> ANL-R13-1024
             rackno = int(partname[6])
             if rackno % 2 == 0:  #even
@@ -1371,7 +1380,7 @@ class BGQsim(Simulator):
         print "Co-scheduling enabled, blue gene scheme=%s, cluster scheme=%s" % (self.cosched_scheme, self.cosched_scheme_remote)
         
         print "Number of mate job pairs: %s, proportion in blue gene jobs: %s%%"\
-             % (len(self.mate_job_dict.keys()), round(proportion *100, 1))
+             % (len(self.mate_job_dict.keys()), round(proportion * 100, 1))
         self.generate_mate_job_log()
 
     set_mate_job_dict = exposed(set_mate_job_dict)
@@ -1395,7 +1404,7 @@ class BGQsim(Simulator):
             now = self.get_current_time_sec()
         
             for job in running_jobs:
-                end_time = max(float(job.starttime) + 60 * float(job.walltime), now + 5*60)
+                end_time = max(float(job.starttime) + 60 * float(job.walltime), now + 5 * 60)
                 end_times.append([job.location, end_time])
             
             active_jobs = [job for job in self.queues.get_jobs([{'is_runnable':True}])] #waiting jobs
@@ -1413,9 +1422,9 @@ class BGQsim(Simulator):
                                           'forbidden': [],
                                           'utility_score': job.score,
                                           'walltime': job.walltime,
-                                          'walltime_p': job.walltime_p,  #*AdjEst*
+                                          'walltime_p': job.walltime_p, #*AdjEst*
                                           'attrs': job.attrs,
-                 } )
+                 })
             
             if len(job_location_args) == 0:
                 break
@@ -1567,7 +1576,7 @@ class BGQsim(Simulator):
         for jobid in self.job_hold_dict.keys():
             job_hold_time = self.get_current_time_sec() - self.first_hold_time_dict[jobid]
             #if a job has holden at least 10 minutes, then periodically unhold it
-            if job_hold_time >  AT_LEAST_HOLD:
+            if job_hold_time > AT_LEAST_HOLD:
                 self.unhold_job(jobid)
 
     def get_mate_job_status(self, jobid):
@@ -1622,7 +1631,7 @@ class BGQsim(Simulator):
         
         #initialize debug logger
         if self.output_log:
-            matelog = PBSlogger(self.output_log+"-mates")
+            matelog = PBSlogger(self.output_log + "-mates")
         else:
             matelog = PBSlogger(".mates")
         
@@ -1718,9 +1727,9 @@ class BGQsim(Simulator):
                 
     def reset_rack_matrix(self):
         self.rack_matrix = [
-                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0,0], [0,0], [0,0], [0,0], [0, 0], [0, 0], [0, 0], [0, 0]],
-                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0,0], [0,0], [0,0], [0,0], [0, 0], [0, 0], [0, 0], [0, 0]],
-                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0,0], [0,0], [0,0], [0,0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]],
+                [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
             ]
         #self.rack_matrix = [[[0,0] for i in range(8)] for j in range(5)]
     
@@ -1830,8 +1839,8 @@ class BGQsim(Simulator):
         '''post screen after simulation completes'''
         #print self.first_yield_hold_time_dict
         capacity_loss_rate = self.total_capacity_loss_rate()
-        msg  = "capacity loss=%f" % capacity_loss_rate
-	print "Number of slowdown: ", self.num_slowdown 
+        msg = "capacity loss=%f" % capacity_loss_rate
+        print "Number of slowdown: ", self.num_slowdown 
         self.dbglog.LogMessage(msg)
         pass
     post_simulation_handling = exposed(post_simulation_handling)    
@@ -1868,7 +1877,7 @@ class BGQsim(Simulator):
         for line in gfile:
             line = line.strip("\n")
             line = line.strip("\r")
-            specs =line.split()
+            specs = line.split()
             self.part_geometry[specs[0]] = specs[1]
         
         gfile.close()
@@ -1876,8 +1885,18 @@ class BGQsim(Simulator):
     def get_dimensions(self, geometry):
         dims = geometry.split("x")
         # return dimension A, B, C, D
-        return str(dims[0])+str( dims[1])+str( dims[2])+str( dims[3])
+        return str(dims[0]) + str(dims[1]) + str(dims[2]) + str(dims[3])
     
     def get_slowdown(self):
         #return random.uniform(0.05, self.slowdown)
         return self.slowdown
+    
+    def get_util(self):
+        return (float(self.num_busy) / self.total_nodes)
+    get_util = exposed(get_util)
+    
+    def log_info(self, spec, filename):
+        f = open(filename, "a")
+        print >> f, spec
+        f.close()
+        return True
