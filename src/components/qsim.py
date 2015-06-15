@@ -24,7 +24,7 @@ import time
 arg_list = ['bgjob', 'cjob', 'config_file', 'outputlog', 'sleep_interval', 
             'predict', 'coscheduling', 'wass', 'BG_Fraction', 'cluster_fraction',
             'bg_trace_start', 'bg_trace_end', 'c_trace_start', 'c_trace_end', 
-            'Anchor', 'anchor', 'vicinity', 'mate_ratio', 'batch', 'geometry', 'slowdown']
+            'Anchor', 'anchor', 'vicinity', 'mate_ratio', 'batch', 'geometry', 'slowdown', 'hybrid', 'portion']
 
 def datetime_strptime (value, format):
     """Parse a datetime like datetime.strptime in Python >= 2.5"""
@@ -192,8 +192,11 @@ if __name__ == "__main__":
         help="Enable cubic partition first scheduling policy")
     p.add_option("-l", "--slowdown", dest="slowdown", type = "float", default=0.0,
         help="Enable slowdown for cubic partition")
-    
-        
+    p.add_option("-y", "--hybrid", dest="hybrid", action = "store_true", default = False,
+        help="Enable hybrid scheduling policy for certain communication-intensive applications")
+    p.add_option("-k", "--portion", dest="portion", type = "float", default = 0.0,
+	help="Portion of jobs that are communication-intensive")
+ 
     coscheduling_schemes = ["hold", "yield"]
     wass_schemes = ["cons", "aggr", "both"]
     

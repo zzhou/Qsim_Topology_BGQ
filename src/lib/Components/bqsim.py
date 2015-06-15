@@ -50,6 +50,10 @@ YIELD_THRESHOLD = 0
 MAX_SLOWDOWN = 0.05
 MIN_SLOWDOWN = 0
 
+# hybrid scheduling
+COMM_INTENSIVE_RATIO = 0.3  # percentage of jobs that are communication intensive
+COMM_INTENSIVE_SLOWDOW = 0.1 # slowdown of communicate-intensive jobs on mesh partitions
+
 # pre-defined special partitions
 SPEC_PARTITIONS = [
 'MIR-40000-73771-2048',
@@ -99,6 +103,9 @@ class BGQsim(Simulator):
     name = "queue-manager"
     alias = "system"
     logger = logging.getLogger(__name__)
+    
+    
+    
 
     def __init__(self, *args, **kwargs):
         
@@ -106,13 +113,24 @@ class BGQsim(Simulator):
         
         #initialize random seed
         random.seed(1)
-
+        
+        self.tmp1 = 0
+        self.tmp2 = 0
+        self.tmp3 = 0
+        self.tmp4 = 0
         #geometry and slowdown
         self.geometry_sched = kwargs.get("geometry", False)
         self.slowdown = kwargs.get("slowdown", 0.0)
         print "Geometry scheduling: ", self.geometry_sched
         print "Slowdown factor: ", self.slowdown
-        self.num_slowdown = 0        
+        self.num_slowdown = 0
+        
+        # hybrid scheduling
+        self.hybrid_sched = kwargs.get("hybrid", False)
+        self.portion = kwargs.get("portion", 0.0)
+        print "Config file: ", self.config_file
+        print "Hybrid scheduling: ", self.hybrid_sched
+        print "Ratio of comm-int jobs: ", self.portion        
  
         #initialize partitions
         self.sleep_interval = kwargs.get("sleep_interval", 0)
@@ -439,7 +457,23 @@ class BGQsim(Simulator):
             spec['queue'] = "default"
             spec['has_resources'] = False
             spec['is_runnable'] = False
+                  
+            # determine whether torus only
+            nodes = int(spec['nodes'])
+            spec['torus'] = False
             
+            if random.random() <= self.portion:
+                self.tmp1 += 1
+                if self.config_file == "partition_xml/mira-base-mesh.xml":
+                    if nodes >= 1024:
+                        spec['torus'] = True
+                        self.tmp2 += 1
+                else:
+                    # mixed partition only contain 1K, 4K and 32K mesh
+                    if nodes == 1024 or nodes == 4096 or nodes == 32768:
+                        spec['torus'] = True
+                        self.tmp2 += 1
+                       
             #add the job spec to the spec list            
             specs.append(spec)
             
@@ -455,6 +489,8 @@ class BGQsim(Simulator):
         
         self.total_job = len(specs)
         print "total job number:", self.total_job
+        print "total jobs with portion", self.tmp1
+        print "total torus jobs: ", self.tmp2
         
         #self.add_jobs(specs)
        
@@ -551,7 +587,7 @@ class BGQsim(Simulator):
             
             if cur_event == "Q":  # Job (Id) is submitted
                 tempspec = self.unsubmitted_job_spec_dict.get(Id, None)
-                
+         
                 if tempspec == None:
                     continue
                 
@@ -749,10 +785,18 @@ class BGQsim(Simulator):
         partition = location[0]
         size = int(self._partitions[partition].size)
         
-        if size >= 1024:
-            slowdown = self.get_slowdown()
-            duration = duration * (1 + slowdown)
-            self.num_slowdown += 1
+        torus = jobspec['torus']
+        if torus == True and not self.check_mesh(location[0]):
+            self.tmp4 += 1
+        if torus == True and self.check_mesh(location[0]):
+            self.tmp3 += 1
+            duration = duration*(1+self.slowdown)
+            #print jobspec['jobid'], location[0]
+            
+#        if size >= 1024:
+#            slowdown = self.get_slowdown()
+#            duration = duration * (1 + slowdown)
+#            self.num_slowdown += 1
             
 #        #determine slowdown
 #        partition = location[0]
@@ -804,6 +848,9 @@ class BGQsim(Simulator):
         walltime_p = args['walltime_p']  #*AdjEst* 
         forbidden = args.get("forbidden", [])
         required = args.get("required", [])
+        
+        # get torus attr
+        torus = args['torus']
         
         best_score = sys.maxint
         best_partition = None
@@ -868,6 +915,11 @@ class BGQsim(Simulator):
                 if 60 * runtime_estimate > (partition.backfill_time - now):
                     continue
                 
+            # check mesh and job's preference
+            if self.hybrid_sched:
+                if self.check_mesh(partition.name) and torus == True:
+                    continue
+    
             if partition.state == "idle":
                 # let's check the impact on partitions that would become blocked            
                 score = 0
@@ -1655,7 +1707,7 @@ class BGQsim(Simulator):
                 
         return idle_midplane_list        
 
-    def     show_resource(self):
+    def show_resource(self):
         '''print rack_matrix'''
         
         self.mark_matrix()
@@ -1841,6 +1893,8 @@ class BGQsim(Simulator):
         capacity_loss_rate = self.total_capacity_loss_rate()
         msg = "capacity loss=%f" % capacity_loss_rate
         print "Number of slowdown: ", self.num_slowdown 
+        print "Number of jobs on mesh", self.tmp3
+        print "Number of torus on torus block:", self.tmp4
         self.dbglog.LogMessage(msg)
         pass
     post_simulation_handling = exposed(post_simulation_handling)    
@@ -1900,3 +1954,14 @@ class BGQsim(Simulator):
         print >> f, spec
         f.close()
         return True
+
+    def check_mesh(self, location_name):
+        location = location_name.strip()
+        specs = location.split("-")
+        mesh_mask = specs[len(specs)-2]
+        if len(mesh_mask) == 1:
+            return True
+        #print location, " Torus"
+        else:
+            return False
+            #print location, " Mesh"

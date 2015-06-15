@@ -236,7 +236,7 @@ class Job (ForeignData):
     fields = ForeignData.fields + [
         "nodes", "location", "jobid", "state", "index", "walltime", "queue", "user", "submittime", 
         "starttime", "project", 'is_runnable', 'is_active', 'has_resources', "score", 'attrs', 
-        'walltime_p',   #*AdjEst*  
+        'walltime_p', 'torus'  #*AdjEst*  
     ]
     
     def __init__ (self, spec):
@@ -261,6 +261,8 @@ class Job (ForeignData):
         self.has_resources = spec.pop("has_resources", None)
         self.score = spec.pop("score", 0.0)
         self.attrs = spec.pop("attrs", {})
+        self.torus = spec.pop("torus", None)
+        
         
         logger.info("Job %s/%s: Found job" % (self.jobid, self.user))
 
@@ -272,7 +274,7 @@ class JobDict(ForeignDataDict):
     __fields__ = ['nodes', 'location', 'jobid', 'state', 'index',
                   'walltime', 'queue', 'user', 'submittime', 'starttime', 'project',
                   'is_runnable', 'is_active', 'has_resources', 'score', 'attrs', 
-                  'walltime_p',  #*AdjEst*
+                  'walltime_p', 'torus'  #*AdjEst*
                   ]
     def __init__(self, queue_manager_name):
         self.queue_manager_name = queue_manager_name
@@ -684,6 +686,7 @@ class BGSched (Component):
                       'walltime': job.walltime,
                       'walltime_p': job.walltime_p,  #*AdjEst*
                       'attrs': job.attrs,
+                      'torus': job.torus
                     } )
 
             try:

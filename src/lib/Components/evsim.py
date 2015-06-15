@@ -172,6 +172,7 @@ class EventSimulator(Component):
         return pos
     add_event = exposed(add_event)
     
+    
     def get_time_span(self):
         '''return the whole time span'''
         starttime = self.event_list[1].get('unixtime')

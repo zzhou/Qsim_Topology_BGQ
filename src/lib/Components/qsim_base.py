@@ -232,7 +232,8 @@ class Job (Data):
                             "has_resources",
                             "attr",
                             "score",
-                            "remain_time",    
+                            "remain_time",
+                            "torus"  
                             ]    
 
     def __init__(self, spec):
@@ -272,6 +273,7 @@ class Job (Data):
         #self.checkpoint = 1
         self.recovering = False
         self.location = []
+        self.torus = spec.get("torus", False)
 
 class JobList(DataList):
     '''the list of job objects'''
